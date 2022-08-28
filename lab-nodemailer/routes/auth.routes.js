@@ -91,8 +91,8 @@ router.post("/signup", async (req, res) => {
       port: 465,
       secure: true,
       auth: {
-        user: "horheyinc8@gmail.com",
-        pass: "knrvohekjawavfdi",
+        user: process.env.SENDER_EMAIL,
+        pass: process.env.SENDER_PASSWORD,
       },
     });
     // create object with all the properties of the email that you want to send.
