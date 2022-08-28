@@ -3,6 +3,7 @@ const router = require("express").Router();
 // ℹ️ Handles password encryption
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
+const path = require("path");
 const nodemailer = require("nodemailer");
 
 // How many rounds should bcrypt run the salt (default [10 - 12 rounds])
@@ -58,20 +59,24 @@ router.post("/signup", async (req, res) => {
     const salt = await bcrypt.genSalt(saltRounds);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const characters =
-      "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let confirmationToken = "";
-    for (let i = 0; i < 25; i++) {
-      confirmationToken +=
-        characters[Math.floor(Math.random() * characters.length)];
-    }
+    //create unique string
+    const createUniqueString = () => {
+      const characters =
+        "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      let confirmationToken = "";
+      for (let i = 0; i < 25; i++) {
+        confirmationToken +=
+          characters[Math.floor(Math.random() * characters.length)];
+      }
+      return confirmationToken;
+    };
     // Create a user and save it in the database
     const newUserDB = await User.create({
       username,
       password: hashedPassword,
       email,
       status: "pending",
-      confirmationCode: confirmationToken,
+      confirmationCode: createUniqueString(),
     });
 
     //change password of db user to  '****'
@@ -79,6 +84,8 @@ router.post("/signup", async (req, res) => {
     req.session.user = newUserDB;
 
     //nodemailer for email confirmation
+    //create a 'transporter' from nodemailer
+    //The auth is a gmail account with the actual password with 3 point authentication
     let mailTransporter = nodemailer.createTransport({
       service: "gmail",
       port: 465,
@@ -88,17 +95,37 @@ router.post("/signup", async (req, res) => {
         pass: "knrvohekjawavfdi",
       },
     });
+    // create object with all the properties of the email that you want to send.
+    //attachments array is to send an image in the email, you need to use a cid: for this
+    let styles = {
+      background: "blue",
+      width: "100%",
+      display: "flex",
+      flexDirection: "column",
+    };
+
     let details = {
       from: "horheyinc8@gmail.com",
       to: newUserDB.email,
       subject: "Verify your email",
       text: "Please click the button to verify",
+      attachments: [
+        {
+          filename: "ironhack-logo.png",
+          path: path.join(__dirname, "..", "public/images/ironhack-logo.png"),
+          cid: "logo",
+        },
+      ],
       html: `
-      <div>
-      <h3>Click here to verify your email :)</h3>
-      <button><a href='http://localhost:3000/auth/confirm/${newUserDB.confirmationCode}'  target="_blank">Click me!</a></button>
+      <div style= "background-color: powderblue; text-align: center; padding: 20px; border-radius: 20px">
+      <img style="height: 350px" src='cid:logo'/>
+      <h2>Ironhack Confirmation Email</h2>
+      <h3>Welcome ${newUserDB.username}!</h3>
+      <h3>Thanks for joining our community, Please confirm your email by clicking the button below</h3>
+      <button style="background-color: #1e98c8; padding:10px; border-radius: 8px;"><a href='http://localhost:3000/auth/confirm/${newUserDB.confirmationCode}'  target="_blank" style="color:white; font-size:1.5rem; text-decoration:none;">Click me!</a></button>
       </div>`,
     };
+    //this actually sends the email with all the details in the object that you created.
     mailTransporter.sendMail(details, (err) => {
       if (err) {
         console.log("There was an error", err);
